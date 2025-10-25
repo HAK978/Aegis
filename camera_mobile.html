@@ -465,8 +465,81 @@
                     <div class="setting-label">Speech Volume: <span id="volume-value">100</span>%</div>
                     <input type="range" id="volume-slider" min="0" max="100" step="10" value="100">
                 </div>
+
+                <!-- AI AGENT SECTION -->
+                <div class="setting-item" style="border-top: 2px solid #444; padding-top: 20px; margin-top: 20px;">
+                    <div class="setting-label" style="font-size: 18px; color: #00aaff; font-weight: bold; margin-bottom: 15px;">
+                        🤖 AI Agent (Gemini)
+                    </div>
+
+                    <!-- Agent Status -->
+                    <div class="toggle" style="margin-bottom: 15px; background: #1a1a1a;">
+                        <div>
+                            <div style="font-weight: bold;">Agent Status</div>
+                            <div style="font-size: 12px; color: #888;" id="agent-status-text">Not Initialized</div>
+                        </div>
+                        <div style="color: #ff0000; font-size: 24px;" id="agent-status-icon">⚫</div>
+                    </div>
+
+                    <!-- Initialize Agent Button -->
+                    <div class="setting-item">
+                        <button onclick="initializeAgent()" id="init-agent-btn" style="width: 100%; background: #00aaff; color: #fff; padding: 15px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;">
+                            🚀 Initialize Agent
+                        </button>
+                    </div>
+
+                    <!-- Agent Mode Selection -->
+                    <div class="setting-item">
+                        <div class="setting-label">Agent Mode</div>
+                        <select id="agent-mode-select" onchange="changeAgentMode()" style="width: 100%; padding: 15px; background: #222; color: #fff; border: 1px solid #444; border-radius: 8px; font-size: 16px;" disabled>
+                            <option value="agent_qa">Q&A - Ask questions</option>
+                            <option value="agent_monitor">Monitor - Proactive alerts</option>
+                            <option value="agent_nav">Navigation - Turn-by-turn</option>
+                            <option value="agent_contextual">Contextual - Scene awareness</option>
+                            <option value="agent_hybrid" selected>Hybrid - Nav + Q&A</option>
+                        </select>
+                    </div>
+
+                    <!-- Agent Query Input -->
+                    <div class="setting-item">
+                        <div class="setting-label">Ask Agent</div>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="agent-query-input" placeholder="What's ahead of me?" style="flex: 1; padding: 15px; background: #222; color: #fff; border: 1px solid #444; border-radius: 8px; font-size: 16px;" disabled>
+                            <button onclick="sendAgentQuery()" id="send-query-btn" style="background: #00ff00; color: #000; padding: 15px 25px; border: none; border-radius: 8px; font-size: 20px; font-weight: bold; cursor: pointer;" disabled>
+                                ▶
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Agent Response Display -->
+                    <div class="setting-item">
+                        <div class="setting-label">Agent Response</div>
+                        <div id="agent-response" style="background: #1a1a1a; padding: 15px; border-radius: 8px; min-height: 60px; color: #0f0; border: 1px solid #333;">
+                            Agent responses will appear here...
+                        </div>
+                    </div>
+
+                    <!-- Agent Stats -->
+                    <div class="setting-item">
+                        <div class="setting-label">Agent Statistics</div>
+                        <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; border: 1px solid #333;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: #888;">Conversation Turns:</span>
+                                <span style="color: #0f0; font-weight: bold;" id="agent-stat-turns">0</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: #888;">Visual Frames:</span>
+                                <span style="color: #0f0; font-weight: bold;" id="agent-stat-frames">0</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #888;">Mode:</span>
+                                <span style="color: #0f0; font-weight: bold;" id="agent-stat-mode">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            
+
             <div class="settings-footer">
                 <button onclick="toggleSettings()" class="close-btn">
                     CLOSE
@@ -495,7 +568,11 @@
         let speechVolume = 1.0;
         let synth = window.speechSynthesis;
         let currentUtterance = null;
-        
+
+        // Agent Configuration
+        let agentInitialized = false;
+        let agentMode = 'agent_hybrid';
+
         // ============================================================
         // Initialization
         // ============================================================
@@ -534,8 +611,15 @@
                 isStreaming = false;
                 updateStartButton();
             });
-            
+
             socket.on('result', handleResult);
+
+            // Agent Socket.IO events
+            socket.on('agent_response', handleAgentResponse);
+            socket.on('agent_error', handleAgentError);
+            socket.on('agent_info', handleAgentInfo);
+            socket.on('agent_mode_changed', handleAgentModeChanged);
+            socket.on('agent_stats', handleAgentStats);
         }
         
         // ============================================================
@@ -824,7 +908,172 @@
                 alert('❌ Vibration error: ' + err.message);
             }
         }
-        
+
+        // ============================================================
+        // AI AGENT FUNCTIONS
+        // ============================================================
+
+        function initializeAgent() {
+            const apiKey = prompt("Enter your Google API Key (or press Cancel to use .env):");
+
+            // Disable button during initialization
+            document.getElementById('init-agent-btn').disabled = true;
+            document.getElementById('init-agent-btn').textContent = '⏳ Initializing...';
+
+            // Send initialization request
+            fetch('/api/agent/init', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    api_key: apiKey || undefined,
+                    mode: agentMode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    agentInitialized = true;
+                    updateAgentUI(true, data.mode);
+                    speak("AI Agent initialized successfully", true);
+
+                    // Enable agent controls
+                    document.getElementById('agent-mode-select').disabled = false;
+                    document.getElementById('agent-query-input').disabled = false;
+                    document.getElementById('send-query-btn').disabled = false;
+
+                    // Update stats periodically
+                    setInterval(requestAgentStats, 5000);
+                } else {
+                    alert('Agent initialization failed: ' + data.error);
+                    document.getElementById('init-agent-btn').disabled = false;
+                    document.getElementById('init-agent-btn').textContent = '🚀 Initialize Agent';
+                }
+            })
+            .catch(error => {
+                console.error('Agent init error:', error);
+                alert('Failed to initialize agent: ' + error);
+                document.getElementById('init-agent-btn').disabled = false;
+                document.getElementById('init-agent-btn').textContent = '🚀 Initialize Agent';
+            });
+        }
+
+        function updateAgentUI(initialized, mode) {
+            const statusIcon = document.getElementById('agent-status-icon');
+            const statusText = document.getElementById('agent-status-text');
+
+            if (initialized) {
+                statusIcon.textContent = '🟢';
+                statusIcon.style.color = '#00ff00';
+                statusText.textContent = `Active (${mode})`;
+                document.getElementById('agent-stat-mode').textContent = mode;
+            } else {
+                statusIcon.textContent = '⚫';
+                statusIcon.style.color = '#ff0000';
+                statusText.textContent = 'Not Initialized';
+                document.getElementById('agent-stat-mode').textContent = '-';
+            }
+        }
+
+        function changeAgentMode() {
+            if (!agentInitialized) return;
+
+            const newMode = document.getElementById('agent-mode-select').value;
+
+            socket.emit('agent_mode_change', { mode: newMode });
+        }
+
+        function sendAgentQuery() {
+            if (!agentInitialized) {
+                alert('Please initialize the agent first');
+                return;
+            }
+
+            const queryInput = document.getElementById('agent-query-input');
+            const query = queryInput.value.trim();
+
+            if (!query) {
+                alert('Please enter a question');
+                return;
+            }
+
+            // Show "thinking" state
+            document.getElementById('agent-response').textContent = '🤔 Thinking...';
+            document.getElementById('agent-response').style.color = '#888';
+
+            // Send query via Socket.IO
+            socket.emit('agent_query_text', { query: query });
+
+            // Clear input
+            queryInput.value = '';
+        }
+
+        function handleAgentResponse(data) {
+            console.log('Agent response:', data);
+
+            // Display response
+            document.getElementById('agent-response').textContent = data.text;
+            document.getElementById('agent-response').style.color = '#0f0';
+
+            // Speak response if TTS enabled
+            if (ttsEnabled) {
+                speak(data.text, false);
+            }
+
+            // Request updated stats
+            requestAgentStats();
+        }
+
+        function handleAgentError(data) {
+            console.error('Agent error:', data);
+            alert('Agent error: ' + data.message);
+
+            document.getElementById('agent-response').textContent = '❌ Error: ' + data.message;
+            document.getElementById('agent-response').style.color = '#ff0000';
+        }
+
+        function handleAgentInfo(data) {
+            console.log('Agent info:', data);
+
+            document.getElementById('agent-response').textContent = 'ℹ️ ' + data.message;
+            document.getElementById('agent-response').style.color = '#888';
+        }
+
+        function handleAgentModeChanged(data) {
+            console.log('Agent mode changed:', data);
+
+            agentMode = data.mode;
+            document.getElementById('agent-mode-select').value = data.mode;
+            document.getElementById('agent-stat-mode').textContent = data.mode;
+
+            speak('Agent mode changed to ' + data.mode.replace('agent_', ''), true);
+        }
+
+        function handleAgentStats(data) {
+            console.log('Agent stats:', data);
+
+            document.getElementById('agent-stat-turns').textContent = data.conversation_turns || 0;
+            document.getElementById('agent-stat-frames').textContent = data.visual_context_frames || 0;
+            document.getElementById('agent-stat-mode').textContent = data.mode || '-';
+        }
+
+        function requestAgentStats() {
+            if (!agentInitialized || !socket) return;
+
+            socket.emit('agent_get_stats');
+        }
+
+        // Allow sending query with Enter key
+        document.addEventListener('DOMContentLoaded', () => {
+            const queryInput = document.getElementById('agent-query-input');
+            if (queryInput) {
+                queryInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        sendAgentQuery();
+                    }
+                });
+            }
+        });
+
         // ============================================================
         // Settings
         // ============================================================
