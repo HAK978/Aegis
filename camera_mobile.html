@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Visual Guidance Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            touch-action: none;
+            position: fixed;
+            width: 100%;
+            height: 100vh;
+            height: -webkit-fill-available; /* Fix for iOS Safari */
+        }
+        
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            height: -webkit-fill-available; /* Fix for iOS Safari */
+        }
+        
+        /* Video container */
+        #video-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            min-height: 0; /* Allow flexbox to shrink this */
+        }
+        
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        /* Alert banner */
+        #alert-banner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            display: none;
+            z-index: 100;
+            animation: pulse 0.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        /* Info panel */
+        #info-panel {
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            min-height: 120px;
+            max-height: 140px; /* Prevent from getting too tall */
+            flex-shrink: 0; /* Don't let this shrink */
+        }
+        
+        .guidance-text {
+            font-size: 22px; /* Slightly smaller */
+            font-weight: bold;
+            color: #0f0;
+            margin-bottom: 10px;
+            line-height: 1.3;
+            max-height: 60px; /* Limit height */
+            overflow: hidden;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 16px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            color: #0f0;
+            font-weight: bold;
+        }
+        
+        /* Controls */
+        #controls {
+            display: flex;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.8);
+            flex-shrink: 0; /* Never shrink */
+            min-height: 60px; /* Ensure minimum touch target size */
+        }
+        
+        button {
+            flex: 1;
+            padding: 15px;
+            font-size: 18px; /* Larger for easier tapping */
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-height: 50px; /* Minimum touch target */
+        }
+        
+        #start-btn {
+            background: #00ff00;
+            color: #000;
+        }
+        
+        #start-btn.active {
+            background: #ff0000;
+        }
+        
+        #settings-btn {
+            background: #444;
+            color: #fff;
+            max-width: 80px;
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        /* Start screen */
+        #start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            z-index: 1000;
+        }
+        
+        .start-icon {
+            font-size: 100px;
+            margin-bottom: 30px;
+        }
+        
+        .start-title {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .start-subtitle {
+            font-size: 18px;
+            color: #888;
+            text-align: center;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+        
+        .start-button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 20px 60px;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0, 255, 0, 0.3);
+        }
+        
+        .start-button:active {
+            transform: scale(0.95);
+        }
+        
+        /* Settings panel */
+        #settings-panel {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.98);
+            z-index: 500;
+            max-height: 80vh;
+            overflow: hidden;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .settings-header {
+            padding: 20px;
+            background: #111;
+            border-bottom: 1px solid #333;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .settings-content {
+            padding: 20px;
+            max-height: calc(80vh - 140px);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .settings-footer {
+            padding: 15px 20px;
+            background: #111;
+            border-top: 1px solid #333;
+            position: sticky;
+            bottom: 0;
+            z-index: 10;
+        }
+        
+        .close-btn {
+            width: 100%;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 18px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        
+        .close-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .setting-item {
+            margin-bottom: 20px;
+        }
+        
+        .setting-label {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #ccc;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 40px;
+        }
+        
+        .toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #222;
+            border-radius: 8px;
+        }
+        
+        .toggle-switch {
+            width: 60px;
+            height: 34px;
+            position: relative;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #00ff00;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        /* Mobile optimization - ensure buttons always visible */
+        @media screen and (max-height: 600px) {
+            .guidance-text {
+                font-size: 18px;
+                max-height: 40px;
+            }
+            #info-panel {
+                padding: 10px;
+                min-height: 100px;
+                max-height: 110px;
+            }
+            .stats {
+                font-size: 12px;
+            }
+        }
+        
+        @media screen and (max-height: 500px) {
+            #info-panel {
+                min-height: 80px;
+                max-height: 90px;
+            }
+            .guidance-text {
+                font-size: 16px;
+                margin-bottom: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Start Screen -->
+    <div id="start-screen">
+        <div class="start-icon">🦮</div>
+        <div class="start-title">AI Visual Guidance</div>
+        <div class="start-subtitle">
+            Real-time obstacle detection and navigation assistance<br>
+            Powered by AMD MI300X
+        </div>
+        <button class="start-button" onclick="initApp()">
+            START GUIDANCE
+        </button>
+    </div>
+    
+    <!-- Main App -->
+    <div id="app" style="display: none;">
+        <div id="video-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="overlay"></canvas>
+            <div id="alert-banner"></div>
+        </div>
+        
+        <div id="info-panel">
+            <div class="guidance-text" id="guidance-text">Initializing...</div>
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-label">Objects</div>
+                    <div class="stat-value" id="objects-count">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Latency</div>
+                    <div class="stat-value" id="latency">0ms</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">FPS</div>
+                    <div class="stat-value" id="fps">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Status</div>
+                    <div class="stat-value" id="status">⚪</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="controls">
+            <button id="start-btn" onclick="toggleStreaming()">START</button>
+            <button id="settings-btn" onclick="toggleSettings()">⚙️</button>
+        </div>
+        
+        <!-- Settings Panel -->
+        <div id="settings-panel">
+            <div class="settings-header">
+                <h3 style="margin: 0;">Settings</h3>
+                <button onclick="toggleSettings()" style="background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; padding: 0 10px;">
+                    ✕
+                </button>
+            </div>
+            
+            <div class="settings-content">
+                <div class="setting-item">
+                    <div class="setting-label">Voice Guidance</div>
+                    <div class="toggle">
+                        <span>Speak navigation instructions</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="tts-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-label">Haptic Feedback</div>
+                    <div class="toggle">
+                        <span>Vibrate on obstacles</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="haptic-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <button onclick="testVibration()" style="width: 100%; background: #444; color: #fff; padding: 15px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;">
+                        🔔 Test Vibration
+                    </button>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-label">Speech Rate: <span id="rate-value">1.0</span>x</div>
+                    <input type="range" id="rate-slider" min="0.5" max="2.0" step="0.1" value="1.0">
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-label">Speech Volume: <span id="volume-value">100</span>%</div>
+                    <input type="range" id="volume-slider" min="0" max="100" step="10" value="100">
+                </div>
+            </div>
+            
+            <div class="settings-footer">
+                <button onclick="toggleSettings()" class="close-btn">
+                    CLOSE
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // ============================================================
+        // Configuration
+        // ============================================================
+        
+        let socket;
+        let video, canvas, ctx;
+        let isStreaming = false;
+        let frameCount = 0;
+        let lastTime = Date.now();
+        let lastGuidance = '';
+        
+        // TTS Configuration
+        let ttsEnabled = true;
+        let hapticEnabled = true;
+        let speechRate = 1.0;
+        let speechVolume = 1.0;
+        let synth = window.speechSynthesis;
+        let currentUtterance = null;
+        
+        // ============================================================
+        // Initialization
+        // ============================================================
+        
+        function initApp() {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+            
+            // Speak welcome message
+            speak("Visual guidance assistant activated. Tap start when ready.", true);
+            
+            // Connect to server
+            connectToServer();
+        }
+        
+        function connectToServer() {
+            // Auto-detect protocol for ngrok HTTPS compatibility
+            const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+            const host = window.location.host;
+            
+            socket = io(`${protocol}://${host}`, {
+                transports: ['websocket', 'polling'],
+                secure: protocol === 'https',
+                rejectUnauthorized: false
+            });
+            
+            socket.on('connect', function() {
+                console.log('Connected to server');
+                document.getElementById('status').textContent = '🟢';
+                speak("Connected to server", true);
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('Disconnected');
+                document.getElementById('status').textContent = '🔴';
+                isStreaming = false;
+                updateStartButton();
+            });
+            
+            socket.on('result', handleResult);
+        }
+        
+        // ============================================================
+        // Camera
+        // ============================================================
+        
+        async function startCamera() {
+            video = document.getElementById('video');
+            canvas = document.getElementById('overlay');
+            ctx = canvas.getContext('2d');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',  // Back camera
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    },
+                    audio: false
+                });
+                
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    // Start streaming
+                    isStreaming = true;
+                    socket.emit('start_stream');
+                    captureAndSend();
+                    
+                    speak("Camera active. Guidance started.", true);
+                    document.getElementById('guidance-text').textContent = 'Scanning...';
+                };
+            } catch (err) {
+                alert('Camera access denied: ' + err.message);
+                speak("Camera access denied", true);
+            }
+        }
+        
+        function stopCamera() {
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            isStreaming = false;
+            speak("Guidance stopped", true);
+        }
+        
+        // ============================================================
+        // Frame Capture & Streaming
+        // ============================================================
+        
+        function captureAndSend() {
+            if (!isStreaming) return;
+            
+            // Capture frame
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(video, 0, 0);
+            
+            // Convert to base64
+            const imageData = tempCanvas.toDataURL('image/jpeg', 0.7);
+            
+            // Send to server
+            socket.emit('frame', {
+                image: imageData,
+                timestamp: Date.now()
+            });
+            
+            // Update FPS
+            frameCount++;
+            const now = Date.now();
+            if (now - lastTime >= 1000) {
+                document.getElementById('fps').textContent = frameCount;
+                frameCount = 0;
+                lastTime = now;
+            }
+            
+            // Continue streaming at ~10 FPS (slower for better processing)
+            setTimeout(captureAndSend, 100);
+        }
+        
+        // ============================================================
+        // Result Handling
+        // ============================================================
+        
+        function handleResult(data) {
+            // Update UI
+            document.getElementById('guidance-text').textContent = data.guidance;
+            document.getElementById('latency').textContent = Math.round(data.timing.total_ms) + 'ms';
+            document.getElementById('objects-count').textContent = data.count;
+            
+            // Draw detections
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (data.detections && data.detections.length > 0) {
+                data.detections.forEach(det => {
+                    const [x1, y1, x2, y2] = det.bbox;
+                    
+                    // Draw bounding box
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                    
+                    // Draw label
+                    ctx.fillStyle = '#00ff00';
+                    ctx.font = 'bold 16px Arial';
+                    const label = `${det.class} - ${Math.round(det.estimated_distance)}m`;
+                    const textWidth = ctx.measureText(label).width;
+                    ctx.fillRect(x1, y1 - 25, textWidth + 10, 25);
+                    ctx.fillStyle = '#000';
+                    ctx.fillText(label, x1 + 5, y1 - 7);
+                });
+            }
+            
+            // Handle guidance
+            handleGuidance(data);
+        }
+        
+        // ============================================================
+        // Guidance Processing (TTS + Haptic)
+        // ============================================================
+        
+        function handleGuidance(data) {
+            const guidance = data.guidance;
+            const objectCount = data.count;
+            const detections = data.detections || [];
+            
+            // Determine urgency based on guidance text AND object distances
+            const isStop = guidance.includes('STOP');
+            const isCaution = guidance.includes('CAUTION') || guidance.includes('⚠️');
+            const hasVeryCloseObject = detections.some(det => det.estimated_distance < 1.0);
+            const hasCloseObject = detections.some(det => det.estimated_distance < 2.0);
+            
+            const isUrgent = isStop || hasVeryCloseObject;
+            const isWarning = isCaution || hasCloseObject;
+            
+            // Show alert banner for urgent/warning situations
+            const alertBanner = document.getElementById('alert-banner');
+            if (isUrgent) {
+                // CRITICAL - Red banner, "STOP"
+                alertBanner.textContent = '🛑 STOP! OBSTACLE AHEAD 🛑';
+                alertBanner.style.background = 'rgba(255, 0, 0, 0.95)';
+                alertBanner.style.display = 'block';
+                // Keep showing until situation changes
+                setTimeout(() => {
+                    if (!guidance.includes('STOP')) {
+                        alertBanner.style.display = 'none';
+                    }
+                }, 3000);
+            } else if (isWarning) {
+                // WARNING - Orange banner
+                alertBanner.textContent = '⚠️ CAUTION ⚠️';
+                alertBanner.style.background = 'rgba(255, 165, 0, 0.9)';
+                alertBanner.style.display = 'block';
+                setTimeout(() => {
+                    alertBanner.style.display = 'none';
+                }, 2000);
+            } else {
+                alertBanner.style.display = 'none';
+            }
+            
+            // HAPTIC FEEDBACK - ONLY for STOP (critical situations)
+            if (hapticEnabled && navigator.vibrate && isUrgent) {
+                try {
+                    // CRITICAL: Strong, continuous vibration (ONLY for STOP)
+                    console.log('🔴 VIBRATING: CRITICAL STOP');
+                    const result = navigator.vibrate([500, 200, 500, 200, 500]);
+                    if (!result) {
+                        console.warn('Vibration was blocked by browser');
+                    }
+                } catch (err) {
+                    console.error('Vibration error:', err);
+                }
+            }
+            
+            // TTS - Only speak if NOT currently speaking or if this is critical new info
+            const isNewGuidance = guidance !== lastGuidance;
+            const isSpeaking = synth.speaking;
+            
+            if (ttsEnabled) {
+                if (isNewGuidance) {
+                    // New guidance - speak it
+                    lastGuidance = guidance;
+                    
+                    // Cancel current speech only if new is more urgent OR it's been >3 seconds
+                    if (isUrgent || !isSpeaking) {
+                        speak(guidance, isUrgent);
+                    } else {
+                        // Let current speech finish, queue this one
+                        setTimeout(() => {
+                            if (!synth.speaking) {
+                                speak(guidance, isUrgent);
+                            }
+                        }, 100);
+                    }
+                } else if (isUrgent && !isSpeaking) {
+                    // Same urgent warning, but only repeat if not currently speaking
+                    speak(guidance, true);
+                }
+            }
+        }
+        
+        // ============================================================
+        // Text-to-Speech (TTS)
+        // ============================================================
+        
+        function speak(text, urgent = false) {
+            if (!ttsEnabled && !urgent) return;
+            
+            // Don't interrupt if already speaking (unless this is critical)
+            if (synth.speaking && !urgent) {
+                console.log('Already speaking, skipping...');
+                return;
+            }
+            
+            // Cancel current speech ONLY if this is more urgent
+            if (synth.speaking && urgent) {
+                synth.cancel();
+            }
+            
+            // Clean up text
+            text = text.replace(/⚠️/g, 'Warning!').replace(/🚨/g, 'Alert!');
+            
+            // Create utterance
+            currentUtterance = new SpeechSynthesisUtterance(text);
+            currentUtterance.rate = urgent ? 1.2 : speechRate;
+            currentUtterance.volume = speechVolume;
+            currentUtterance.pitch = urgent ? 1.2 : 1.0;
+            
+            // Speak
+            synth.speak(currentUtterance);
+        }
+        
+        // ============================================================
+        // Controls
+        // ============================================================
+        
+        function toggleStreaming() {
+            if (isStreaming) {
+                stopCamera();
+            } else {
+                startCamera();
+            }
+            updateStartButton();
+        }
+        
+        function updateStartButton() {
+            const btn = document.getElementById('start-btn');
+            if (isStreaming) {
+                btn.textContent = 'STOP';
+                btn.classList.add('active');
+            } else {
+                btn.textContent = 'START';
+                btn.classList.remove('active');
+            }
+        }
+        
+        function toggleSettings() {
+            const panel = document.getElementById('settings-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function testVibration() {
+            if (!navigator.vibrate) {
+                alert('❌ Vibration API not supported on this device/browser');
+                console.error('navigator.vibrate is undefined');
+                return;
+            }
+            
+            // Test the critical vibration pattern
+            console.log('Testing vibration...');
+            try {
+                const result = navigator.vibrate([500, 200, 500, 200, 500]);
+                console.log('Vibrate result:', result);
+                if (result) {
+                    speak("Vibration test successful", true);
+                } else {
+                    alert('⚠️ Vibration was blocked. Try allowing permissions or use HTTPS.');
+                }
+            } catch (err) {
+                console.error('Vibration error:', err);
+                alert('❌ Vibration error: ' + err.message);
+            }
+        }
+        
+        // ============================================================
+        // Settings
+        // ============================================================
+        
+        document.getElementById('tts-toggle').addEventListener('change', (e) => {
+            ttsEnabled = e.target.checked;
+            speak(ttsEnabled ? "Voice guidance enabled" : "Voice guidance disabled", true);
+        });
+        
+        document.getElementById('haptic-toggle').addEventListener('change', (e) => {
+            hapticEnabled = e.target.checked;
+            if (hapticEnabled && navigator.vibrate) {
+                navigator.vibrate(100);
+            }
+        });
+        
+        document.getElementById('rate-slider').addEventListener('input', (e) => {
+            speechRate = parseFloat(e.target.value);
+            document.getElementById('rate-value').textContent = speechRate.toFixed(1);
+        });
+        
+        document.getElementById('volume-slider').addEventListener('input', (e) => {
+            speechVolume = parseInt(e.target.value) / 100;
+            document.getElementById('volume-value').textContent = e.target.value;
+        });
+        
+        // ============================================================
+        // Android Back Button Handling
+        // ============================================================
+        
+        // Handle Android back button to close settings instead of app
+        window.addEventListener('popstate', (event) => {
+            const settingsPanel = document.getElementById('settings-panel');
+            if (settingsPanel.style.display === 'block') {
+                event.preventDefault();
+                toggleSettings();
+                // Push state back to keep user on page
+                history.pushState(null, '', window.location.href);
+            }
+        });
+        
+        // Initialize history state
+        history.pushState(null, '', window.location.href);
+        
+        // Also handle when settings opens - add to history
+        const originalToggleSettings = toggleSettings;
+        toggleSettings = function() {
+            const panel = document.getElementById('settings-panel');
+            const wasOpen = panel.style.display === 'block';
+            originalToggleSettings();
+            
+            // If opening settings, push state so back button can close it
+            if (!wasOpen) {
+                history.pushState({ settingsOpen: true }, '', window.location.href);
+            }
+        };
+        
+        // ============================================================
+        // Keep screen awake
+        // ============================================================
+        
+        let wakeLock = null;
+        
+        async function requestWakeLock() {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Screen wake lock active');
+            } catch (err) {
+                console.log('Wake lock error:', err);
+            }
+        }
+        
+        requestWakeLock();
+        
+        // Re-acquire wake lock when visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                requestWakeLock();
+            }
+        });
+    </script>
+</body>
+</html>
