@@ -996,19 +996,19 @@ class AMDOptimizedBackend:
     async def process_frame(self, image: np.ndarray) -> Dict[str, Any]:
         """
         Complete frame processing: detection + guidance
-        
+
         Args:
             image: Input frame (numpy array)
-            
+
         Returns:
             Dict with detection results and guidance
         """
         # Run detection and guidance sequentially for accuracy
         detection_result = await self.detect_objects(image)
         guidance_result = await self.generate_guidance(detection_result.objects, image)
-        
+
         total_time = detection_result.processing_time_ms + guidance_result.processing_time_ms
-        
+
         return {
             'detections': detection_result.objects,
             'count': detection_result.count,
@@ -1020,6 +1020,25 @@ class AMDOptimizedBackend:
             },
             'depth_used': self.use_depth,
             'timestamp': time.time()
+        }
+
+    def export_visual_context(self, frame_result: Dict[str, Any], frame_id: int = 0) -> Dict[str, Any]:
+        """
+        Export visual context in format compatible with Gemini Agent
+
+        Args:
+            frame_result: Result from process_frame()
+            frame_id: Optional frame ID for tracking
+
+        Returns:
+            Dict compatible with gemini_agent.VisualContext
+        """
+        return {
+            'detections': frame_result.get('detections', []),
+            'count': frame_result.get('count', 0),
+            'guidance': frame_result.get('guidance', 'No guidance available'),
+            'timestamp': frame_result.get('timestamp', time.time()),
+            'frame_id': frame_id
         }
 
 

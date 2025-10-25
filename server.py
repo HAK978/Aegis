@@ -20,6 +20,16 @@ try:
 except:
     from amd_backend import AMDOptimizedBackend
 
+# Import Gemini Agent
+try:
+    from gemini_agent import GeminiAgent, AgentMode, VisualContext, UserQuery, AgentResponse
+    AGENT_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  Gemini Agent not available: {e}")
+    AGENT_AVAILABLE = False
+
+from audio_processor import AudioProcessor
+
 # ============================================================================
 # FLASK APP SETUP
 # ============================================================================
@@ -31,6 +41,18 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 # Global backend instance
 backend = None
 is_processing = False
+
+# Global agent instance
+agent = None
+agent_mode = AgentMode.HYBRID
+audio_processor = None
+frame_counter = 0
+
+# Agent loop management
+agent_loop_task = None
+agent_stop_event = None
+agent_query_queue = asyncio.Queue() if asyncio else None
+agent_response_queue = asyncio.Queue() if asyncio else None
 
 
 # ============================================================================
@@ -282,21 +304,149 @@ def init_backend():
 def test_backend():
     """Test the backend with dummy image"""
     global backend
-    
+
     if backend is None:
         return jsonify({'error': 'Backend not initialized'}), 400
-    
+
     try:
         # Create dummy image
         dummy_image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
-        
+
         # Process
         result = run_async(backend.process_frame(dummy_image))
-        
+
         return jsonify(result)
-    
+
     except Exception as e:
         print(f"❌ Test error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# AGENT API ENDPOINTS
+# ============================================================================
+
+@app.route('/api/agent/init', methods=['POST'])
+def init_agent():
+    """Initialize Gemini Agent"""
+    global agent, audio_processor
+
+    if not AGENT_AVAILABLE:
+        return jsonify({
+            'success': False,
+            'error': 'Gemini Agent not available (check google-generativeai installation)'
+        }), 400
+
+    try:
+        # Get API key from request or environment
+        data = request.get_json() or {}
+        api_key = data.get('api_key') or os.getenv('GOOGLE_API_KEY')
+
+        if not api_key:
+            return jsonify({
+                'success': False,
+                'error': 'GOOGLE_API_KEY not provided'
+            }), 400
+
+        # Initialize agent
+        mode = AgentMode(data.get('mode', 'agent_hybrid'))
+        agent = GeminiAgent(api_key=api_key, mode=mode)
+        agent.start_conversation()
+
+        # Initialize audio processor
+        audio_processor = AudioProcessor(enable_vad=True)
+
+        print(f"✅ Agent initialized in {mode.value} mode")
+
+        return jsonify({
+            'success': True,
+            'mode': mode.value,
+            'model': agent.model_name
+        })
+
+    except Exception as e:
+        print(f"❌ Agent init error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/agent/mode', methods=['POST'])
+def set_agent_mode():
+    """Change agent operational mode"""
+    global agent, agent_mode
+
+    if agent is None:
+        return jsonify({'error': 'Agent not initialized'}), 400
+
+    try:
+        data = request.get_json()
+        new_mode = AgentMode(data.get('mode', 'agent_hybrid'))
+
+        # Update mode
+        agent.mode = new_mode
+        agent_mode = new_mode
+
+        # Restart conversation with new mode
+        agent.start_conversation()
+
+        print(f"✅ Agent mode changed to: {new_mode.value}")
+
+        return jsonify({
+            'success': True,
+            'mode': new_mode.value
+        })
+
+    except Exception as e:
+        print(f"❌ Mode change error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/agent/query', methods=['POST'])
+def agent_query():
+    """Send text query to agent"""
+    global agent
+
+    if agent is None:
+        return jsonify({'error': 'Agent not initialized'}), 400
+
+    try:
+        data = request.get_json()
+        query_text = data.get('query', '')
+
+        if not query_text:
+            return jsonify({'error': 'No query provided'}), 400
+
+        # Send query
+        response = run_async(agent.query(query_text, include_visual_context=True))
+
+        return jsonify({
+            'success': True,
+            'response': response.text,
+            'mode': response.mode.value,
+            'timestamp': response.timestamp
+        })
+
+    except Exception as e:
+        print(f"❌ Query error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/agent/stats', methods=['GET'])
+def agent_stats():
+    """Get agent statistics"""
+    global agent
+
+    if agent is None:
+        return jsonify({'error': 'Agent not initialized'}), 400
+
+    try:
+        stats = agent.get_stats()
+        return jsonify(stats)
+
+    except Exception as e:
+        print(f"❌ Stats error: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -328,26 +478,168 @@ def handle_start_stream():
 @socketio.on('frame')
 def handle_frame(data):
     """Process incoming frame"""
-    global backend, is_processing
-    
+    global backend, is_processing, agent, frame_counter
+
     if not is_processing or backend is None:
         return
-    
+
     try:
         # Decode image
         image = base64_to_image(data['image'])
         if image is None:
             return
-        
+
         # Process frame
         result = run_async(backend.process_frame(image))
-        
+
+        # Update agent visual context if agent is active
+        if agent is not None:
+            frame_counter += 1
+            visual_context = VisualContext(
+                detections=result.get('detections', []),
+                count=result.get('count', 0),
+                guidance=result.get('guidance', ''),
+                timestamp=result.get('timestamp', time.time()),
+                frame_id=frame_counter
+            )
+            agent.update_visual_context(visual_context)
+
         # Send result back
         emit('result', result)
-    
+
     except Exception as e:
         print(f"❌ Frame processing error: {e}")
         emit('error', {'message': str(e)})
+
+
+@socketio.on('agent_query_text')
+def handle_agent_query_text(data):
+    """Handle text query to agent"""
+    global agent
+
+    if agent is None:
+        emit('agent_error', {'message': 'Agent not initialized'})
+        return
+
+    try:
+        query_text = data.get('query', '')
+        if not query_text:
+            emit('agent_error', {'message': 'No query provided'})
+            return
+
+        # Process query
+        response = run_async(agent.query(query_text, include_visual_context=True))
+
+        # Send response
+        emit('agent_response', {
+            'text': response.text,
+            'mode': response.mode.value,
+            'timestamp': response.timestamp
+        })
+
+    except Exception as e:
+        print(f"❌ Agent query error: {e}")
+        emit('agent_error', {'message': str(e)})
+
+
+@socketio.on('agent_query_audio')
+def handle_agent_query_audio(data):
+    """Handle audio query to agent"""
+    global agent, audio_processor
+
+    if agent is None:
+        emit('agent_error', {'message': 'Agent not initialized'})
+        return
+
+    if audio_processor is None:
+        emit('agent_error', {'message': 'Audio processor not initialized'})
+        return
+
+    try:
+        # Get audio data (base64 encoded)
+        audio_base64 = data.get('audio', '')
+        if not audio_base64:
+            emit('agent_error', {'message': 'No audio provided'})
+            return
+
+        # Decode audio
+        audio_bytes = audio_processor.base64_to_pcm(audio_base64)
+
+        # Convert to Gemini format
+        gemini_audio = audio_processor.browser_to_gemini(
+            audio_bytes,
+            source_sample_rate=data.get('sample_rate', 48000)
+        )
+
+        # Check for voice activity
+        has_speech = audio_processor.is_speech(gemini_audio)
+
+        if not has_speech:
+            emit('agent_info', {'message': 'No speech detected'})
+            return
+
+        # TODO: Implement speech-to-text or direct audio query to Gemini
+        # For now, send a placeholder response
+        emit('agent_response', {
+            'text': 'Audio query received but speech-to-text not yet implemented. Please use text queries.',
+            'mode': agent.mode.value,
+            'timestamp': time.time()
+        })
+
+    except Exception as e:
+        print(f"❌ Agent audio query error: {e}")
+        emit('agent_error', {'message': str(e)})
+
+
+@socketio.on('agent_mode_change')
+def handle_agent_mode_change(data):
+    """Handle agent mode change request"""
+    global agent, agent_mode
+
+    if agent is None:
+        emit('agent_error', {'message': 'Agent not initialized'})
+        return
+
+    try:
+        new_mode_str = data.get('mode', 'agent_hybrid')
+        new_mode = AgentMode(new_mode_str)
+
+        # Update mode
+        agent.mode = new_mode
+        agent_mode = new_mode
+
+        # Restart conversation with new mode
+        agent.start_conversation()
+
+        print(f"✅ Agent mode changed to: {new_mode.value}")
+
+        # Confirm mode change
+        emit('agent_mode_changed', {
+            'mode': new_mode.value,
+            'timestamp': time.time()
+        })
+
+    except Exception as e:
+        print(f"❌ Agent mode change error: {e}")
+        emit('agent_error', {'message': str(e)})
+
+
+@socketio.on('agent_get_stats')
+def handle_agent_get_stats():
+    """Get agent statistics"""
+    global agent
+
+    if agent is None:
+        emit('agent_error', {'message': 'Agent not initialized'})
+        return
+
+    try:
+        stats = agent.get_stats()
+        emit('agent_stats', stats)
+
+    except Exception as e:
+        print(f"❌ Agent stats error: {e}")
+        emit('agent_error', {'message': str(e)})
 
 
 # ============================================================================

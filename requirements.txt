@@ -17,12 +17,11 @@ bidict==0.23.1
 # DEEP LEARNING - AMD ROCM OPTIMIZED
 # =============================================================================
 # PyTorch with ROCm 7.0 support (nightly build for AMD MI300X)
-# Install from: https://pytorch.org/get-started/locally/
-# Command: pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.0
-torch==2.10.0.dev20251023+rocm7.0
-torchvision==0.25.0.dev20251024+rocm7.0
-torchaudio==2.10.0.dev20251024+rocm7.0
-pytorch-triton-rocm==3.5.0
+# Install manually first: pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.0
+# Or skip if already installed
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
 
 # =============================================================================
 # COMPUTER VISION
@@ -50,6 +49,20 @@ timm==1.0.21  # PyTorch Image Models (required for Depth-Anything V2)
 requests==2.32.5
 urllib3==2.5.0
 dnspython==2.8.0
+
+# =============================================================================
+# GOOGLE GEMINI AI AGENT
+# =============================================================================
+google-generativeai>=0.8.3  # Gemini SDK with Live API support
+websockets>=13.0  # WebSocket client for Gemini Live API
+python-dotenv==1.0.1  # Environment variable management
+
+# =============================================================================
+# AUDIO PROCESSING
+# =============================================================================
+# pyaudio>=0.2.14  # Audio I/O for speech capture (OPTIONAL - requires system packages)
+soundfile>=0.12.1  # Audio file I/O
+# webrtcvad>=2.0.10  # Voice Activity Detection (OPTIONAL - requires python3-dev)
 
 # =============================================================================
 # INSTALLATION NOTES
