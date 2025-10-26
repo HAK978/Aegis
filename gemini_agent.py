@@ -123,14 +123,14 @@ class GeminiAgent:
 
     def __init__(self,
                  api_key: Optional[str] = None,
-                 model: str = "gemini-2.0-flash-exp",
+                 model: str = "gemini-2.0-flash-exp",  # Default, can override with gemini-2.5-flash-latest
                  mode: AgentMode = AgentMode.HYBRID):
         """
         Initialize Gemini Agent
 
         Args:
             api_key: Google API key (or set GOOGLE_API_KEY env var)
-            model: Gemini model to use
+            model: Gemini model to use (gemini-2.5-flash-latest recommended)
             mode: Agent operational mode
         """
         if not GEMINI_AVAILABLE:
