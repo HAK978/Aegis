@@ -1,0 +1,1866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Visual Guidance - GEMINI AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            touch-action: none;
+            position: fixed;
+            width: 100%;
+            height: 100vh;
+            height: -webkit-fill-available; /* Fix for iOS Safari */
+        }
+        
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            height: -webkit-fill-available; /* Fix for iOS Safari */
+        }
+        
+        /* Video container */
+        #video-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            min-height: 0; /* Allow flexbox to shrink this */
+        }
+        
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        /* Alert banner */
+        #alert-banner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 0, 0, 0.9);
+            color: white;
+            padding: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            display: none;
+            z-index: 100;
+            animation: pulse 0.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        /* Info panel */
+        #info-panel {
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            min-height: 120px;
+            max-height: 140px; /* Prevent from getting too tall */
+            flex-shrink: 0; /* Don't let this shrink */
+        }
+        
+        .guidance-text {
+            font-size: 22px; /* Slightly smaller */
+            font-weight: bold;
+            color: #0f0;
+            margin-bottom: 10px;
+            line-height: 1.3;
+            max-height: 60px; /* Limit height */
+            overflow: hidden;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 16px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            color: #0f0;
+            font-weight: bold;
+        }
+        
+        /* Controls */
+        #controls {
+            display: flex;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.8);
+            flex-shrink: 0; /* Never shrink */
+            min-height: 60px; /* Ensure minimum touch target size */
+        }
+        
+        button {
+            flex: 1;
+            padding: 15px;
+            font-size: 18px; /* Larger for easier tapping */
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-height: 50px; /* Minimum touch target */
+        }
+        
+        #start-btn {
+            background: #00ff00;
+            color: #000;
+        }
+        
+        #start-btn.active {
+            background: #ff0000;
+        }
+        
+        #settings-btn {
+            background: #444;
+            color: #fff;
+            max-width: 80px;
+        }
+        
+        button:active {
+            transform: scale(0.95);
+        }
+        
+        /* Start screen */
+        #start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            z-index: 1000;
+        }
+        
+        .start-icon {
+            font-size: 100px;
+            margin-bottom: 30px;
+        }
+        
+        .start-title {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .start-subtitle {
+            font-size: 18px;
+            color: #888;
+            text-align: center;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+        
+        .start-button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 20px 60px;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0, 255, 0, 0.3);
+        }
+        
+        .start-button:active {
+            transform: scale(0.95);
+        }
+        
+        /* Settings panel */
+        #settings-panel {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.98);
+            z-index: 500;
+            max-height: 80vh;
+            overflow: hidden;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .settings-header {
+            padding: 20px;
+            background: #111;
+            border-bottom: 1px solid #333;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .settings-content {
+            padding: 20px;
+            max-height: calc(80vh - 140px);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .settings-footer {
+            padding: 15px 20px;
+            background: #111;
+            border-top: 1px solid #333;
+            position: sticky;
+            bottom: 0;
+            z-index: 10;
+        }
+        
+        .close-btn {
+            width: 100%;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 18px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        
+        .close-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .setting-item {
+            margin-bottom: 20px;
+        }
+        
+        .setting-label {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #ccc;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 40px;
+        }
+        
+        .toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #222;
+            border-radius: 8px;
+        }
+        
+        .toggle-switch {
+            width: 60px;
+            height: 34px;
+            position: relative;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #00ff00;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        /* Mobile optimization - ensure buttons always visible */
+        @media screen and (max-height: 600px) {
+            .guidance-text {
+                font-size: 18px;
+                max-height: 40px;
+            }
+            #info-panel {
+                padding: 10px;
+                min-height: 100px;
+                max-height: 110px;
+            }
+            .stats {
+                font-size: 12px;
+            }
+        }
+        
+        @media screen and (max-height: 500px) {
+            #info-panel {
+                min-height: 80px;
+                max-height: 90px;
+            }
+            .guidance-text {
+                font-size: 16px;
+                margin-bottom: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Start Screen -->
+    <div id="start-screen">
+        <div class="start-icon">🦮🤖</div>
+        <div class="start-title">AI Visual Guidance - GEMINI</div>
+        <div class="start-subtitle">
+            Real-time obstacle detection with Gemini 2.0 AI<br>
+            Powered by AMD MI300X + Google Gemini
+        </div>
+        <button class="start-button" onclick="initApp()">
+            START GUIDANCE
+        </button>
+    </div>
+    
+    <!-- Main App -->
+    <div id="app" style="display: none;">
+        <div id="video-container">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="overlay"></canvas>
+            <div id="alert-banner"></div>
+            <div id="wake-word-indicator" onclick="testWakeWord()" style="position: absolute; top: 80px; left: 50%; transform: translateX(-50%); background: rgba(0, 170, 255, 0.9); color: #fff; padding: 12px 24px; border-radius: 25px; font-size: 14px; font-weight: bold; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; cursor: pointer;">
+                🎙️ Tap here or say "Hello Aegis"
+            </div>
+        </div>
+        
+        <div id="info-panel">
+            <div class="guidance-text" id="guidance-text">Initializing...</div>
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-label">Objects</div>
+                    <div class="stat-value" id="objects-count">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Latency</div>
+                    <div class="stat-value" id="latency">0ms</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">FPS</div>
+                    <div class="stat-value" id="fps">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Status</div>
+                    <div class="stat-value" id="status">⚪</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="controls">
+            <button id="start-btn" onclick="toggleStreaming()">START</button>
+            <button id="settings-btn" onclick="toggleSettings()">⚙️</button>
+        </div>
+        
+        <!-- Settings Panel -->
+        <div id="settings-panel">
+            <div class="settings-header">
+                <h3 style="margin: 0;">Settings</h3>
+                <button onclick="toggleSettings()" style="background: none; border: none; color: #fff; font-size: 28px; cursor: pointer; padding: 0 10px;">
+                    ✕
+                </button>
+            </div>
+            
+            <div class="settings-content">
+                <div class="setting-item">
+                    <div class="setting-label">Voice Guidance</div>
+                    <div class="toggle">
+                        <span>Speak navigation instructions</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="tts-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-label">Haptic Feedback</div>
+                    <div class="toggle">
+                        <span>Vibrate on obstacles</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="haptic-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <button onclick="testVibration()" style="width: 100%; background: #444; color: #fff; padding: 15px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;">
+                        🔔 Test Vibration
+                    </button>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-label">Speech Rate: <span id="rate-value">1.0</span>x</div>
+                    <input type="range" id="rate-slider" min="0.5" max="2.0" step="0.1" value="1.0">
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-label">Speech Volume: <span id="volume-value">100</span>%</div>
+                    <input type="range" id="volume-slider" min="0" max="100" step="10" value="100">
+                </div>
+
+                <!-- AI AGENT SECTION -->
+                <div class="setting-item" style="border-top: 2px solid #444; padding-top: 20px; margin-top: 20px;">
+                    <div class="setting-label" style="font-size: 18px; color: #00aaff; font-weight: bold; margin-bottom: 15px;">
+                        🤖 AI Agent (Gemini)
+                    </div>
+
+                    <!-- Agent Status -->
+                    <div class="toggle" style="margin-bottom: 15px; background: #1a1a1a;">
+                        <div>
+                            <div style="font-weight: bold;">Agent Status</div>
+                            <div style="font-size: 12px; color: #888;" id="agent-status-text">Not Initialized</div>
+                        </div>
+                        <div style="color: #ff0000; font-size: 24px;" id="agent-status-icon">⚫</div>
+                    </div>
+
+                    <!-- Initialize Agent Button -->
+                    <div class="setting-item">
+                        <button onclick="initializeAgent()" id="init-agent-btn" style="width: 100%; background: #00aaff; color: #fff; padding: 15px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;">
+                            🚀 Initialize Agent
+                        </button>
+                    </div>
+
+                    <!-- Agent Mode Selection -->
+                    <div class="setting-item">
+                        <div class="setting-label">Agent Mode</div>
+                        <select id="agent-mode-select" onchange="changeAgentMode()" style="width: 100%; padding: 15px; background: #222; color: #fff; border: 1px solid #444; border-radius: 8px; font-size: 16px;" disabled>
+                            <option value="agent_qa">Q&A - Ask questions</option>
+                            <option value="agent_monitor">Monitor - Proactive alerts</option>
+                            <option value="agent_nav">Navigation - Turn-by-turn</option>
+                            <option value="agent_contextual">Contextual - Scene awareness</option>
+                            <option value="agent_hybrid" selected>Hybrid - Nav + Q&A</option>
+                        </select>
+                    </div>
+
+                    <!-- Agent Query Input -->
+                    <div class="setting-item">
+                        <div class="setting-label">Ask Agent (Voice or Text)</div>
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="toggleVoiceInput()" id="voice-btn" style="background: #ff6600; color: #fff; padding: 15px 20px; border: none; border-radius: 8px; font-size: 24px; cursor: pointer;" disabled title="Tap to speak your question">
+                                🎤
+                            </button>
+                            <input type="text" id="agent-query-input" placeholder="Tap mic or type question" style="flex: 1; padding: 15px; background: #222; color: #fff; border: 1px solid #444; border-radius: 8px; font-size: 16px;" disabled>
+                            <button onclick="sendAgentQuery()" id="send-query-btn" style="background: #00ff00; color: #000; padding: 15px 25px; border: none; border-radius: 8px; font-size: 20px; font-weight: bold; cursor: pointer;" disabled>
+                                ▶
+                            </button>
+                        </div>
+                        <div id="voice-status" style="margin-top: 10px; color: #888; font-size: 14px;"></div>
+                    </div>
+
+                    <!-- Agent Response Display -->
+                    <div class="setting-item">
+                        <div class="setting-label">Agent Response</div>
+                        <div id="agent-response" style="background: #1a1a1a; padding: 15px; border-radius: 8px; min-height: 60px; color: #0f0; border: 1px solid #333;">
+                            Agent responses will appear here...
+                        </div>
+                    </div>
+
+                    <!-- Agent Stats -->
+                    <div class="setting-item">
+                        <div class="setting-label">Agent Statistics</div>
+                        <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; border: 1px solid #333;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: #888;">Conversation Turns:</span>
+                                <span style="color: #0f0; font-weight: bold;" id="agent-stat-turns">0</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="color: #888;">Visual Frames:</span>
+                                <span style="color: #0f0; font-weight: bold;" id="agent-stat-frames">0</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: #888;">Mode:</span>
+                                <span style="color: #0f0; font-weight: bold;" id="agent-stat-mode">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-footer">
+                <button onclick="toggleSettings()" class="close-btn">
+                    CLOSE
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // ============================================================
+        // Configuration
+        // ============================================================
+        
+        let socket;
+        let video, canvas, ctx;
+        let isStreaming = false;
+        let frameCount = 0;
+        let lastTime = Date.now();
+        let lastGuidance = '';
+        let lastStopTime = 0;  // Track when STOP was last announced
+        const STOP_REPEAT_COOLDOWN = 3000;  // Don't repeat STOP for 3 seconds
+        
+        // TTS Configuration
+        let ttsEnabled = true;
+        let hapticEnabled = true;
+        let speechRate = 1.0;
+        let speechVolume = 1.0;
+        let synth = window.speechSynthesis;
+        let currentUtterance = null;
+        let agentIsSpeaking = false;  // NEW: Flag to pause main TTS when agent speaks
+
+        // Agent Configuration
+        let agentInitialized = false;
+        let agentMode = 'agent_hybrid';
+        
+        // Wake Word Configuration
+        let wakeWordRecognition = null;
+        let wakeWordListening = false;
+        let aegisActivated = false;  // NEW: Track if Aegis wake word is active
+        const WAKE_WORD = 'hello aegis';  // Wake word phrase
+        
+        // Speech Recognition (for voice input)
+        let recognition = null;
+        let isListening = false;
+        
+        // TTS Warning Tracking - only speak each warning once
+        let spokenWarnings = new Set();  // Track which warnings have been spoken
+
+        // ============================================================
+        // Initialization
+        // ============================================================
+        
+        function initApp() {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+            
+            // Speak welcome message
+            speak("Visual guidance assistant activated. Tap start when ready.", true);
+            
+            // Connect to server
+            connectToServer();
+        }
+        
+        function initializeBackend() {
+            console.log('Initializing backend...');
+            
+            fetch('/api/init', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log('Backend initialized:', data.message);
+                    speak("Backend ready", true);
+                } else {
+                    console.error('Backend initialization failed:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Failed to initialize backend:', error);
+            });
+        }
+        
+        function connectToServer() {
+            // GEMINI VERSION - Use same port as page (works with ngrok)
+            const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+            const host = window.location.host;  // Includes port from URL
+            
+            socket = io(`${protocol}://${host}`, {
+                transports: ['websocket', 'polling'],
+                secure: protocol === 'https',
+                rejectUnauthorized: false
+            });
+            
+            socket.on('connect', function() {
+                console.log('Connected to server');
+                document.getElementById('status').textContent = '🟢';
+                speak("Connected to server", true);
+                
+                // Auto-initialize backend on connect
+                initializeBackend();
+                
+                // Request microphone permission FIRST, then initialize agent
+                setTimeout(async () => {
+                    console.log('🎙️ Requesting microphone permission before agent init...');
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        console.log('✅ Microphone permission granted!');
+                        stream.getTracks().forEach(track => track.stop());
+                        
+                        // Now initialize agent
+                        autoInitializeAgent();
+                    } catch (err) {
+                        console.error('❌ Microphone permission denied:', err);
+                        alert('⚠️ Microphone access is required for voice activation.\n\nPlease:\n1. Allow microphone when prompted\n2. Or tap the blue indicator to manually activate\n\nAgent will initialize without voice activation.');
+                        
+                        // Initialize agent anyway (manual mode only)
+                        autoInitializeAgent();
+                    }
+                }, 2000);
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('Disconnected');
+                document.getElementById('status').textContent = '🔴';
+                isStreaming = false;
+                updateStartButton();
+            });
+
+            socket.on('result', handleResult);
+
+            // Agent Socket.IO events
+            socket.on('agent_response', handleAgentResponse);
+            socket.on('agent_error', handleAgentError);
+            socket.on('agent_info', handleAgentInfo);
+            socket.on('agent_mode_changed', handleAgentModeChanged);
+            socket.on('agent_stats', handleAgentStats);
+            
+            // Wake word confirmation from server
+            socket.on('wake_word_confirmed', function(data) {
+                console.log('✅ Server confirmed wake word activation:', data.message);
+                // Server has captured screenshot, now start listening for query
+                console.log('🎤 Wake word confirmed by server - query listening will start');
+            });
+        }
+        
+        // ============================================================
+        // Camera
+        // ============================================================
+        
+        async function startCamera() {
+            video = document.getElementById('video');
+            canvas = document.getElementById('overlay');
+            ctx = canvas.getContext('2d');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',  // Back camera
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    },
+                    audio: false
+                });
+                
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    // Start streaming
+                    isStreaming = true;
+                    socket.emit('start_stream');
+                    captureAndSend();
+                    
+                    speak("Camera active. Guidance started.", true);
+                    document.getElementById('guidance-text').textContent = 'Scanning...';
+                };
+            } catch (err) {
+                alert('Camera access denied: ' + err.message);
+                speak("Camera access denied", true);
+            }
+        }
+        
+        function stopCamera() {
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            isStreaming = false;
+            speak("Guidance stopped", true);
+        }
+        
+        // ============================================================
+        // Frame Capture & Streaming
+        // ============================================================
+        
+        function captureAndSend() {
+            if (!isStreaming) return;
+            
+            // Capture frame
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(video, 0, 0);
+            
+            // Convert to base64
+            const imageData = tempCanvas.toDataURL('image/jpeg', 0.7);
+            
+            // Send to server
+            socket.emit('frame', {
+                image: imageData,
+                timestamp: Date.now()
+            });
+            
+            // Update FPS
+            frameCount++;
+            const now = Date.now();
+            if (now - lastTime >= 1000) {
+                document.getElementById('fps').textContent = frameCount;
+                frameCount = 0;
+                lastTime = now;
+            }
+            
+            // Continue streaming at ~10 FPS (slower for better processing)
+            setTimeout(captureAndSend, 100);
+        }
+        
+        // ============================================================
+        // Result Handling
+        // ============================================================
+        
+        function handleResult(data) {
+            // Update UI
+            document.getElementById('guidance-text').textContent = data.guidance;
+            document.getElementById('latency').textContent = Math.round(data.timing.total_ms) + 'ms';
+            document.getElementById('objects-count').textContent = data.count;
+            
+            // Draw detections
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (data.detections && data.detections.length > 0) {
+                data.detections.forEach(det => {
+                    const [x1, y1, x2, y2] = det.bbox;
+                    
+                    // Draw bounding box
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                    
+                    // Draw label
+                    ctx.fillStyle = '#00ff00';
+                    ctx.font = 'bold 16px Arial';
+                    const label = `${det.class} - ${Math.round(det.estimated_distance)}m`;
+                    const textWidth = ctx.measureText(label).width;
+                    ctx.fillRect(x1, y1 - 25, textWidth + 10, 25);
+                    ctx.fillStyle = '#000';
+                    ctx.fillText(label, x1 + 5, y1 - 7);
+                });
+            }
+            
+            // Handle guidance
+            handleGuidance(data);
+        }
+        
+        // ============================================================
+        // Guidance Processing (TTS + Haptic)
+        // ============================================================
+        
+        function handleGuidance(data) {
+            const guidance = data.guidance;
+            const objectCount = data.count;
+            const detections = data.detections || [];
+            
+            // Determine urgency based on guidance text AND object distances
+            const isStop = guidance.includes('STOP');
+            const isCaution = guidance.includes('CAUTION') || guidance.includes('⚠️');
+            const hasVeryCloseObject = detections.some(det => det.estimated_distance < 1.0);
+            const hasCloseObject = detections.some(det => det.estimated_distance < 2.0);
+            
+            const isUrgent = isStop || hasVeryCloseObject;
+            const isWarning = isCaution || hasCloseObject;
+            
+            // Show alert banner for urgent/warning situations
+            const alertBanner = document.getElementById('alert-banner');
+            if (isUrgent) {
+                // CRITICAL - Red banner, "STOP"
+                alertBanner.textContent = '🛑 STOP! OBSTACLE AHEAD 🛑';
+                alertBanner.style.background = 'rgba(255, 0, 0, 0.95)';
+                alertBanner.style.display = 'block';
+                // Keep showing until situation changes
+                setTimeout(() => {
+                    if (!guidance.includes('STOP')) {
+                        alertBanner.style.display = 'none';
+                    }
+                }, 3000);
+            } else if (isWarning) {
+                // WARNING - Orange banner
+                alertBanner.textContent = '⚠️ CAUTION ⚠️';
+                alertBanner.style.background = 'rgba(255, 165, 0, 0.9)';
+                alertBanner.style.display = 'block';
+                setTimeout(() => {
+                    alertBanner.style.display = 'none';
+                }, 2000);
+            } else {
+                alertBanner.style.display = 'none';
+            }
+            
+            // HAPTIC FEEDBACK - ONLY for STOP (critical situations)
+            if (hapticEnabled && navigator.vibrate && isUrgent) {
+                try {
+                    // CRITICAL: Strong, continuous vibration (ONLY for STOP)
+                    console.log('🔴 VIBRATING: CRITICAL STOP');
+                    const result = navigator.vibrate([500, 200, 500, 200, 500]);
+                    if (!result) {
+                        console.warn('Vibration was blocked by browser');
+                    }
+                } catch (err) {
+                    console.error('Vibration error:', err);
+                }
+            }
+            
+            // TTS - Only speak if NOT currently speaking or if this is critical new info
+            const isNewGuidance = guidance !== lastGuidance;
+            const isSpeaking = synth.speaking;
+            const now = Date.now();
+            
+            // MUTE TTS when Aegis is activated (wake word mode)
+            if (aegisActivated) {
+                console.log('🔇 TTS muted - Aegis is listening');
+                return;
+            }
+            
+            // SKIP main TTS if agent is currently speaking
+            if (agentIsSpeaking) {
+                return;
+            }
+            
+            if (ttsEnabled) {
+                if (isNewGuidance) {
+                    // New guidance - speak it
+                    lastGuidance = guidance;
+                    
+                    // ONLY SPEAK RED WARNINGS (urgent) - and only once
+                    if (isUrgent) {
+                        // Check if we've already spoken this warning
+                        if (!spokenWarnings.has(guidance)) {
+                            speak(guidance, true);
+                            spokenWarnings.add(guidance);
+                            lastStopTime = now;
+                            
+                            // Clear this warning after 5 seconds so it can be spoken again if needed
+                            setTimeout(() => {
+                                spokenWarnings.delete(guidance);
+                            }, 5000);
+                        } else {
+                            console.log('⏭️ Skipping duplicate warning:', guidance);
+                        }
+                    }
+                    // Do NOT speak normal (non-urgent) guidance
+                }
+            }
+        }
+        
+        // ============================================================
+        // Text-to-Speech (TTS)
+        // ============================================================
+        
+        function speak(text, urgent = false) {
+            if (!ttsEnabled && !urgent) return;
+            
+            // Don't interrupt if already speaking (unless this is critical)
+            if (synth.speaking && !urgent) {
+                console.log('Already speaking, skipping...');
+                return;
+            }
+            
+            // Cancel current speech ONLY if this is more urgent
+            if (synth.speaking && urgent) {
+                synth.cancel();
+            }
+            
+            // Clean up text
+            text = text.replace(/⚠️/g, 'Warning!').replace(/🚨/g, 'Alert!');
+            
+            // Create utterance
+            currentUtterance = new SpeechSynthesisUtterance(text);
+            // URGENT WARNINGS: Use SLOWER rate (0.7) and LOWER pitch for better clarity
+            currentUtterance.rate = urgent ? 0.7 : speechRate;
+            currentUtterance.volume = speechVolume;
+            currentUtterance.pitch = urgent ? 0.9 : 1.0;
+            
+            // Speak
+            synth.speak(currentUtterance);
+        }
+        
+        // ============================================================
+        // Controls
+        // ============================================================
+        
+        function toggleStreaming() {
+            if (isStreaming) {
+                stopCamera();
+            } else {
+                startCamera();
+            }
+            updateStartButton();
+        }
+        
+        function updateStartButton() {
+            const btn = document.getElementById('start-btn');
+            if (isStreaming) {
+                btn.textContent = 'STOP';
+                btn.classList.add('active');
+            } else {
+                btn.textContent = 'START';
+                btn.classList.remove('active');
+            }
+        }
+        
+        function toggleSettings() {
+            const panel = document.getElementById('settings-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function testVibration() {
+            if (!navigator.vibrate) {
+                alert('❌ Vibration API not supported on this device/browser');
+                console.error('navigator.vibrate is undefined');
+                return;
+            }
+            
+            // Test the critical vibration pattern
+            console.log('Testing vibration...');
+            try {
+                const result = navigator.vibrate([500, 200, 500, 200, 500]);
+                console.log('Vibrate result:', result);
+                if (result) {
+                    speak("Vibration test successful", true);
+                } else {
+                    alert('⚠️ Vibration was blocked. Try allowing permissions or use HTTPS.');
+                }
+            } catch (err) {
+                console.error('Vibration error:', err);
+                alert('❌ Vibration error: ' + err.message);
+            }
+        }
+
+        // ============================================================
+        // AI AGENT FUNCTIONS
+        // ============================================================
+
+        function autoInitializeAgent() {
+            console.log('🤖 Auto-initializing AI Agent with .env API key...');
+            
+            // Update UI to show initializing
+            document.getElementById('init-agent-btn').disabled = true;
+            document.getElementById('init-agent-btn').textContent = '⏳ Auto-Initializing...';
+            document.getElementById('agent-status-text').textContent = 'Initializing...';
+
+            // Send initialization request WITHOUT prompting for API key
+            fetch('/api/agent/init', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode: agentMode
+                    // No api_key - will use .env
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    agentInitialized = true;
+                    updateAgentUI(true, data.mode);
+                    console.log('✅ AI Agent initialized successfully');
+                    speak("AI Agent ready. Say Hello Aegis to ask questions.", true);
+
+                    // Enable agent controls
+                    document.getElementById('agent-mode-select').disabled = false;
+                    document.getElementById('voice-btn').disabled = false;
+                    document.getElementById('agent-query-input').disabled = false;
+                    document.getElementById('send-query-btn').disabled = false;
+                    document.getElementById('init-agent-btn').textContent = '✅ Agent Active';
+
+                    // Start wake word listening
+                    startWakeWordListening();
+
+                    // Update stats periodically
+                    setInterval(requestAgentStats, 5000);
+                } else {
+                    console.error('❌ Agent initialization failed:', data.error);
+                    document.getElementById('init-agent-btn').disabled = false;
+                    document.getElementById('init-agent-btn').textContent = '🚀 Initialize Agent';
+                    document.getElementById('agent-status-text').textContent = 'Failed: ' + data.error;
+                }
+            })
+            .catch(error => {
+                console.error('❌ Agent init error:', error);
+                document.getElementById('init-agent-btn').disabled = false;
+                document.getElementById('init-agent-btn').textContent = '🚀 Initialize Agent';
+                document.getElementById('agent-status-text').textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function initializeAgent() {
+            // Keep manual initialization as backup, but don't prompt for API key
+            console.log('🤖 Manual initialization triggered');
+            autoInitializeAgent();
+        }
+
+        function updateAgentUI(initialized, mode) {
+            const statusIcon = document.getElementById('agent-status-icon');
+            const statusText = document.getElementById('agent-status-text');
+
+            if (initialized) {
+                statusIcon.textContent = '🟢';
+                statusIcon.style.color = '#00ff00';
+                statusText.textContent = `Active (${mode})`;
+                document.getElementById('agent-stat-mode').textContent = mode;
+            } else {
+                statusIcon.textContent = '⚫';
+                statusIcon.style.color = '#ff0000';
+                statusText.textContent = 'Not Initialized';
+                document.getElementById('agent-stat-mode').textContent = '-';
+            }
+        }
+
+        function changeAgentMode() {
+            if (!agentInitialized) return;
+
+            const newMode = document.getElementById('agent-mode-select').value;
+
+            socket.emit('agent_mode_change', { mode: newMode });
+        }
+
+        // Wake Word Listening - "Hello Aegis"
+        async function startWakeWordListening() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                console.warn('❌ Speech recognition not supported - wake word disabled');
+                console.warn('Please use Chrome or Edge browser for voice activation');
+                alert('Voice activation not supported in this browser. Please use Chrome or Edge, or tap the blue indicator to manually activate voice input.');
+                return;
+            }
+
+            // Don't create new recognition if already exists and running
+            if (wakeWordRecognition && wakeWordListening) {
+                console.log('✅ Wake word listener already active');
+                return;
+            }
+
+            console.log('🎙️ Initializing wake word detection for:', WAKE_WORD);
+
+            wakeWordRecognition = new SpeechRecognition();
+            wakeWordRecognition.continuous = true;  // Keep listening
+            wakeWordRecognition.interimResults = true;  // Get partial results
+            wakeWordRecognition.lang = 'en-US';
+
+            wakeWordRecognition.onstart = function() {
+                console.log('✅ Wake word listening STARTED - mic is active');
+                console.log('📢 Say "' + WAKE_WORD + '" to activate agent');
+                document.getElementById('wake-word-indicator').style.display = 'block';
+                wakeWordListening = true;
+            };
+
+            wakeWordRecognition.onresult = function(event) {
+                const lastResultIndex = event.results.length - 1;
+                const result = event.results[lastResultIndex];
+                const transcript = result[0].transcript.toLowerCase().trim();
+                const isFinal = result.isFinal;
+                
+                // LOG EVERYTHING the mic hears
+                console.log('🎤 [' + (isFinal ? 'FINAL' : 'interim') + '] Heard:', transcript);
+                
+                // Check if wake word is detected (use variations for error tolerance)
+                const wakeWordVariations = [
+                    'hello aegis',
+                    'hello ages', 
+                    'helo aegis',
+                    'hey aegis',
+                    'hello ags',
+                    'hello ajax'  // Common misrecognition
+                ];
+                
+                const detected = wakeWordVariations.some(phrase => transcript.includes(phrase));
+                
+                if (detected) {
+                    console.log('🎯 ===== WAKE WORD DETECTED =====');
+                    console.log('📝 Full transcript:', transcript);
+                    
+                    // Check if user already said their question in same breath
+                    // e.g., "Hello Aegis what do you see?"
+                    let questionText = transcript;
+                    for (const phrase of wakeWordVariations) {
+                        if (questionText.includes(phrase)) {
+                            // Remove wake word and extract the question
+                            questionText = questionText.replace(phrase, '').trim();
+                            break;
+                        }
+                    }
+                    
+                    console.log('🔄 Stopping wake word listener...');
+                    
+                    // SET AEGIS ACTIVATED FLAG - mutes TTS
+                    aegisActivated = true;
+                    console.log('🔇 TTS MUTED - Aegis mode active');
+                    
+                    // VISUAL FEEDBACK: Orange (wake word heard)
+                    document.getElementById('wake-word-indicator').textContent = '👂 Wake word heard!';
+                    document.getElementById('wake-word-indicator').style.background = 'rgba(255, 140, 0, 0.9)';
+                    document.getElementById('wake-word-indicator').style.display = 'block';
+                    
+                    // Stop wake word recognition temporarily
+                    wakeWordRecognition.stop();
+                    wakeWordListening = false;
+                    
+                    // SEND ACTIVATION TO SERVER (captures screenshot)
+                    console.log('📸 Sending wake word activation to server...');
+                    socket.emit('wake_word_activated');
+                    
+                    // CHECK: Did user already ask their question?
+                    if (questionText.length > 3 && isFinal) {
+                        // User said everything in one go! "Hello Aegis what do you see?"
+                        console.log('⚡ FAST MODE: Question detected in same breath!');
+                        console.log('📤 Question:', questionText);
+                        
+                        document.getElementById('wake-word-indicator').textContent = '📤 Heard: "' + questionText + '"';
+                        document.getElementById('wake-word-indicator').style.background = 'rgba(0, 255, 0, 0.9)';
+                        
+                        // Send directly to Gemini (no need to wait for second speech)
+                        socket.emit('agent_query_text', { query: questionText });
+                    } else {
+                        // User just said wake word - wait for question
+                        console.log('🔊 Playing confirmation beep');
+                        const beep = new SpeechSynthesisUtterance('Yes?');
+                        beep.rate = 1.5;
+                        beep.volume = 0.8;
+                        synth.speak(beep);
+                        
+                        // Wait for beep to finish, then start listening for query
+                        setTimeout(() => {
+                            console.log('🎙️ Starting query listening...');
+                            startQueryListening();
+                        }, 800);
+                    }
+                } else if (isFinal) {
+                    // Log what we heard but didn't match
+                    console.log('❌ Not wake word. Looking for variations of:', WAKE_WORD);
+                }
+            };
+
+            wakeWordRecognition.onerror = function(event) {
+                console.error('❌ Wake word error:', event.error);
+                
+                // Only log real errors, not "no-speech" or "aborted"
+                if (event.error !== 'no-speech' && event.error !== 'aborted') {
+                    console.error('Wake word recognition error details:', event);
+                    
+                    if (event.error === 'not-allowed') {
+                        console.error('🚫 MICROPHONE PERMISSION DENIED!');
+                        console.error('💡 Solution: Allow microphone in browser settings');
+                        alert('Microphone permission denied. Please allow microphone access in your browser settings to use voice activation.');
+                    } else if (event.error === 'audio-capture') {
+                        console.error('🎤 MICROPHONE NOT WORKING');
+                        console.error('💡 Check: Is microphone plugged in? Working in other apps?');
+                    } else if (event.error === 'network') {
+                        console.error('🌐 NETWORK ERROR - Speech recognition needs internet');
+                    }
+                } else {
+                    console.log('ℹ️ Wake word listener idle (no speech) - this is normal');
+                }
+                
+                // Restart wake word listening after error
+                if (agentInitialized && !wakeWordListening) {
+                    setTimeout(() => {
+                        try {
+                            console.log('🔄 Restarting wake word listener after error...');
+                            wakeWordRecognition.start();
+                            wakeWordListening = true;
+                            document.getElementById('wake-word-indicator').style.display = 'block';
+                            console.log('✅ Wake word listener restarted');
+                        } catch (e) {
+                            console.log('Wake word listener already running');
+                        }
+                    }, 1000);
+                }
+            };
+
+            wakeWordRecognition.onend = function() {
+                console.log('🔚 Wake word listener ended');
+                
+                // Restart wake word listening if agent still initialized
+                if (agentInitialized && !isListening) {
+                    try {
+                        console.log('🔄 Auto-restarting wake word listener...');
+                        wakeWordRecognition.start();
+                        wakeWordListening = true;
+                        document.getElementById('wake-word-indicator').style.display = 'block';
+                        console.log('✅ Wake word listener restarted');
+                    } catch (e) {
+                        console.log('Wake word listener already running');
+                    }
+                }
+            };
+
+            // Start listening
+            try {
+                console.log('▶️ Starting wake word recognition...');
+                wakeWordRecognition.start();
+                wakeWordListening = true;
+                document.getElementById('wake-word-indicator').style.display = 'block';
+                console.log('✅ Wake word listening ACTIVE - say "' + WAKE_WORD + '"');
+            } catch (e) {
+                console.error('❌ Failed to start wake word listening:', e);
+                alert('Failed to start voice activation: ' + e.message);
+            }
+        }
+
+        // Listen for user query after wake word
+        function startQueryListening() {
+            console.log('🎙️ ===== QUERY LISTENING STARTED =====');
+            
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const queryRecognition = new SpeechRecognition();
+            
+            queryRecognition.continuous = false;  // Stop after one result
+            queryRecognition.interimResults = true;  // Show what's being heard
+            queryRecognition.lang = 'en-US';
+            queryRecognition.maxAlternatives = 1;
+            
+            // Store interim results in case final doesn't come
+            let lastInterimResult = '';
+            let queryTimeout = null;
+
+            // Mute main TTS while listening for query
+            agentIsSpeaking = true;
+            console.log('🔇 Main TTS muted for query listening');
+
+            queryRecognition.onstart = function() {
+                console.log('✅ Query mic ACTIVE - speak your question now!');
+                console.log('⏱️ Will auto-send after 10 seconds if you speak');
+                
+                // VISUAL FEEDBACK: Show that we're listening
+                document.getElementById('wake-word-indicator').textContent = '🎤 ASK YOUR QUESTION NOW!';
+                document.getElementById('wake-word-indicator').style.background = 'rgba(255, 0, 0, 0.9)';
+                document.getElementById('wake-word-indicator').style.display = 'block';
+                document.getElementById('wake-word-indicator').style.fontSize = '28px';
+                document.getElementById('wake-word-indicator').style.fontWeight = 'bold';
+                document.getElementById('wake-word-indicator').style.animation = 'pulse 1s infinite';
+                
+                // AUDIO FEEDBACK: Beep so user knows to speak
+                const beep = new SpeechSynthesisUtterance('Go');
+                beep.rate = 1.5;
+                beep.volume = 0.7;
+                window.speechSynthesis.speak(beep);
+                
+                // CRITICAL: Fallback timeout - send interim result if no final comes
+                // EXTENDED to 10 seconds for comfortable speaking
+                queryTimeout = setTimeout(() => {
+                    if (lastInterimResult && lastInterimResult.length > 3) {
+                        console.log('⏰ TIMEOUT - Sending interim result:', lastInterimResult);
+                        document.getElementById('wake-word-indicator').textContent = '📤 Heard: "' + lastInterimResult + '"';
+                        socket.emit('agent_query_text', { query: lastInterimResult });
+                        queryRecognition.stop();
+                    } else {
+                        console.log('⏰ TIMEOUT - No speech detected, cancelling');
+                        speak('I didn\'t hear anything. Say Hello Aegis to try again.');
+                        queryRecognition.stop();
+                    }
+                }, 10000);  // 10 second timeout
+            };
+
+            queryRecognition.onresult = function(event) {
+                const lastResultIndex = event.results.length - 1;
+                const result = event.results[lastResultIndex];
+                const query = result[0].transcript;
+                const isFinal = result.isFinal;
+                const confidence = result[0].confidence;
+                
+                // LOG everything heard
+                console.log('🎤 [' + (isFinal ? 'FINAL' : 'interim') + '] Query heard:', query);
+                console.log('📊 Confidence:', (confidence * 100).toFixed(1) + '%');
+                
+                // Store ALL interim results as backup
+                if (!isFinal && query.length > 0) {
+                    lastInterimResult = query;
+                    console.log('💾 Updated interim backup:', lastInterimResult);
+                }
+                
+                if (isFinal) {
+                    console.log('✅ FINAL QUERY CAPTURED:', query);
+                    console.log('📤 Sending to agent...');
+                    
+                    // Clear timeout since we got final result
+                    if (queryTimeout) {
+                        clearTimeout(queryTimeout);
+                        queryTimeout = null;
+                        console.log('⏰ Cleared timeout - got final result');
+                    }
+                    
+                    // VISUAL FEEDBACK: Show what we heard
+                    document.getElementById('wake-word-indicator').textContent = '📤 Heard: "' + query + '"';
+                    document.getElementById('wake-word-indicator').style.background = 'rgba(0, 255, 0, 0.9)';
+                    
+                    // Send query to agent
+                    const queryInput = document.getElementById('agent-query-input');
+                    queryInput.value = query;
+                    
+                    // Show "thinking" state
+                    document.getElementById('agent-response').textContent = '🤔 ' + query;
+                    document.getElementById('agent-response').style.color = '#888';
+                    
+                    // Send to agent
+                    console.log('🌐 Emitting agent_query_text event');
+                    socket.emit('agent_query_text', { query: query });
+                    
+                    // Update indicator to show "thinking"
+                    setTimeout(() => {
+                        document.getElementById('wake-word-indicator').textContent = '🤔 Thinking...';
+                        document.getElementById('wake-word-indicator').style.background = 'rgba(128, 128, 128, 0.9)';
+                    }, 1500);
+                    
+                    // Clear input after sending
+                    setTimeout(() => {
+                        queryInput.value = '';
+                    }, 1000);
+                }
+            };
+
+            queryRecognition.onerror = function(event) {
+                console.error('❌ Query recognition error:', event.error);
+                console.error('Error details:', event);
+                
+                // Clear timeout on error
+                if (queryTimeout) {
+                    clearTimeout(queryTimeout);
+                    queryTimeout = null;
+                }
+                
+                // VISUAL FEEDBACK: Show error
+                document.getElementById('wake-word-indicator').textContent = '❌ Error: ' + event.error;
+                document.getElementById('wake-word-indicator').style.background = 'rgba(255, 0, 0, 0.9)';
+                document.getElementById('wake-word-indicator').style.display = 'block';
+                
+                let userMessage = '';
+                switch(event.error) {
+                    case 'no-speech':
+                        userMessage = 'No speech detected. Please try again.';
+                        console.log('💡 Tip: Speak louder or check microphone');
+                        break;
+                    case 'aborted':
+                        userMessage = 'Listening was aborted';
+                        console.log('⚠️ Speech recognition was cancelled');
+                        break;
+                    case 'audio-capture':
+                        userMessage = 'Microphone not working';
+                        console.log('💡 Check: Is mic plugged in? Permissions granted?');
+                        break;
+                    case 'network':
+                        userMessage = 'Network error';
+                        console.log('💡 Speech recognition needs internet connection');
+                        break;
+                    case 'not-allowed':
+                        userMessage = 'Microphone permission denied';
+                        console.log('💡 Please allow microphone access in browser settings');
+                        break;
+                    default:
+                        userMessage = 'Error: ' + event.error;
+                }
+                
+                speak(userMessage, true);
+                agentIsSpeaking = false;  // Resume main TTS
+                
+                // Hide error after 3 seconds and restart wake word
+                setTimeout(() => {
+                    document.getElementById('wake-word-indicator').style.display = 'none';
+                }, 3000);
+                
+                // Restart wake word listening
+                console.log('🔄 Restarting wake word listener...');
+                if (agentInitialized) {
+                    setTimeout(() => {
+                        try {
+                            wakeWordRecognition.start();
+                            wakeWordListening = true;
+                            document.getElementById('wake-word-indicator').textContent = '🎙️ Tap here or say "Hello Aegis"';
+                            document.getElementById('wake-word-indicator').style.background = 'rgba(0, 170, 255, 0.9)';
+                            document.getElementById('wake-word-indicator').style.display = 'block';
+                            console.log('✅ Wake word listener restarted');
+                        } catch (e) {
+                            console.error('Failed to restart wake word:', e);
+                        }
+                    }, 500);
+                }
+            };
+
+            queryRecognition.onend = function() {
+                console.log('🔚 Query listening ENDED');
+                
+                // Clear timeout if still pending
+                if (queryTimeout) {
+                    clearTimeout(queryTimeout);
+                    queryTimeout = null;
+                    console.log('⏰ Cleared timeout on end');
+                }
+                
+                console.log('⏳ Agent will respond, then wake word will reactivate');
+                
+                // UNMUTE TTS after query finishes
+                aegisActivated = false;
+                console.log('🔊 TTS UNMUTED - Normal navigation resumed');
+                
+                // Note: agentIsSpeaking will be cleared when agent response finishes
+                // Restart wake word listening
+                if (agentInitialized) {
+                    setTimeout(() => {
+                        try {
+                            wakeWordRecognition.start();
+                            wakeWordListening = true;
+                            document.getElementById('wake-word-indicator').style.display = 'block';
+                            console.log('✅ Wake word listener reactivated');
+                        } catch (e) {
+                            console.log('Wake word already running:', e.message);
+                        }
+                    }, 2000);  // Wait 2 seconds before reactivating wake word
+                }
+            };
+
+            // Start listening for query
+            try {
+                console.log('▶️ Starting query recognition...');
+                queryRecognition.start();
+            } catch (e) {
+                console.error('❌ Failed to start query listening:', e);
+                speak('Could not start microphone', true);
+                agentIsSpeaking = false;
+            }
+        }
+
+        // Manual wake word activation (when user taps the indicator)
+        async function testWakeWord() {
+            if (!agentInitialized) {
+                alert('Please wait - AI Agent is still initializing...');
+                return;
+            }
+            
+            console.log('✋ Manual wake word activation - testing microphone first...');
+            
+            // Request microphone permission explicitly
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log('✅ Microphone permission granted');
+                // Stop the test stream
+                stream.getTracks().forEach(track => track.stop());
+            } catch (err) {
+                console.error('❌ Microphone permission denied:', err);
+                alert('⚠️ Microphone permission denied!\n\nPlease:\n1. Go to your browser settings\n2. Allow microphone access for this site\n3. Refresh the page and try again');
+                return;
+            }
+            
+            console.log('🎤 Starting query listening...');
+            
+            // SET AEGIS MODE (mute TTS)
+            aegisActivated = true;
+            console.log('🔇 TTS MUTED - Aegis mode active');
+            
+            // Update indicator
+            document.getElementById('wake-word-indicator').textContent = '🎤 Listening...';
+            document.getElementById('wake-word-indicator').style.background = 'rgba(255, 102, 0, 0.9)';
+            document.getElementById('wake-word-indicator').style.display = 'block';
+            
+            // Stop wake word recognition (IMPORTANT: prevent "aborted" error)
+            if (wakeWordRecognition) {
+                try {
+                    wakeWordRecognition.stop();
+                    console.log('🛑 Wake word listener stopped for manual activation');
+                } catch (e) {
+                    console.log('Wake word already stopped');
+                }
+                wakeWordListening = false;
+            }
+            
+            // Send wake word activation to server (captures screenshot)
+            socket.emit('wake_word_activated');
+            
+            // Give audio feedback
+            const beep = new SpeechSynthesisUtterance('Yes? What do you need?');
+            beep.rate = 1.2;
+            beep.volume = 0.9;
+            synth.speak(beep);
+            
+            // Wait for beep to finish, then start listening for query
+            setTimeout(() => {
+                startQueryListening();
+            }, 1500);
+        }
+
+        // Voice input with Web Speech API (manual button trigger)
+        function toggleVoiceInput() {
+            if (!agentInitialized) {
+                alert('Please initialize the agent first');
+                return;
+            }
+
+            const voiceBtn = document.getElementById('voice-btn');
+            const voiceStatus = document.getElementById('voice-status');
+            const queryInput = document.getElementById('agent-query-input');
+
+            if (isListening) {
+                // Stop listening
+                if (recognition) {
+                    recognition.stop();
+                }
+                isListening = false;
+                voiceBtn.textContent = '🎤';
+                voiceBtn.style.background = '#ff6600';
+                voiceStatus.textContent = '';
+                return;
+            }
+
+            // Initialize speech recognition on first use
+            if (!recognition) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                
+                if (!SpeechRecognition) {
+                    alert('Speech recognition not supported in this browser. Please use Chrome or Edge.');
+                    return;
+                }
+
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+                recognition.maxAlternatives = 1;
+
+                recognition.onstart = function() {
+                    isListening = true;
+                    voiceBtn.textContent = '⏹️';
+                    voiceBtn.style.background = '#ff0000';
+                    voiceStatus.textContent = '🎙️ Listening... Speak now!';
+                    voiceStatus.style.color = '#ff6600';
+                };
+
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    voiceStatus.textContent = `✅ Heard: "${transcript}"`;
+                    voiceStatus.style.color = '#00ff00';
+                    
+                    // Populate input field
+                    queryInput.value = transcript;
+                    
+                    // Auto-send query after 500ms
+                    setTimeout(() => {
+                        sendAgentQuery();
+                    }, 500);
+                };
+
+                recognition.onerror = function(event) {
+                    console.error('Speech recognition error:', event.error);
+                    let errorMsg = 'Error: ';
+                    switch(event.error) {
+                        case 'no-speech':
+                            errorMsg += 'No speech detected. Please try again.';
+                            break;
+                        case 'network':
+                            errorMsg += 'Network error. Check your connection.';
+                            break;
+                        case 'not-allowed':
+                            errorMsg += 'Microphone access denied. Please allow microphone in browser settings.';
+                            break;
+                        default:
+                            errorMsg += event.error;
+                    }
+                    voiceStatus.textContent = errorMsg;
+                    voiceStatus.style.color = '#ff0000';
+                    
+                    isListening = false;
+                    voiceBtn.textContent = '🎤';
+                    voiceBtn.style.background = '#ff6600';
+                };
+
+                recognition.onend = function() {
+                    isListening = false;
+                    voiceBtn.textContent = '🎤';
+                    voiceBtn.style.background = '#ff6600';
+                    
+                    // Clear status after 3 seconds if not error
+                    if (!voiceStatus.textContent.includes('Error')) {
+                        setTimeout(() => {
+                            voiceStatus.textContent = '';
+                        }, 3000);
+                    }
+                };
+            }
+
+            // Start listening
+            try {
+                recognition.start();
+            } catch (e) {
+                console.error('Failed to start speech recognition:', e);
+                voiceStatus.textContent = 'Error: Could not start microphone';
+                voiceStatus.style.color = '#ff0000';
+            }
+        }
+
+        function sendAgentQuery() {
+            if (!agentInitialized) {
+                alert('Please initialize the agent first');
+                return;
+            }
+
+            const queryInput = document.getElementById('agent-query-input');
+            const query = queryInput.value.trim();
+
+            if (!query) {
+                alert('Please enter a question');
+                return;
+            }
+
+            // Show "thinking" state
+            document.getElementById('agent-response').textContent = '🤔 Thinking...';
+            document.getElementById('agent-response').style.color = '#888';
+
+            // Send query via Socket.IO
+            socket.emit('agent_query_text', { query: query });
+
+            // Clear input
+            queryInput.value = '';
+        }
+
+        function handleAgentResponse(data) {
+            console.log('Agent response:', data);
+
+            // Display response
+            document.getElementById('agent-response').textContent = data.text;
+            document.getElementById('agent-response').style.color = '#0f0';
+
+            // Mute main TTS and speak agent response
+            if (ttsEnabled) {
+                agentIsSpeaking = true;  // Pause main TTS
+                
+                // Cancel any ongoing main TTS
+                if (synth.speaking) {
+                    synth.cancel();
+                }
+                
+                // Speak agent response
+                const utterance = new SpeechSynthesisUtterance(data.text);
+                utterance.rate = speechRate;
+                utterance.volume = speechVolume;
+                
+                // When agent finishes speaking, resume main TTS
+                utterance.onend = function() {
+                    agentIsSpeaking = false;
+                    console.log('Agent finished speaking, main TTS resumed');
+                };
+                
+                utterance.onerror = function() {
+                    agentIsSpeaking = false;
+                };
+                
+                synth.speak(utterance);
+            }
+
+            // Request updated stats
+            requestAgentStats();
+        }
+
+        function handleAgentError(data) {
+            console.error('Agent error:', data);
+            alert('Agent error: ' + data.message);
+
+            document.getElementById('agent-response').textContent = '❌ Error: ' + data.message;
+            document.getElementById('agent-response').style.color = '#ff0000';
+        }
+
+        function handleAgentInfo(data) {
+            console.log('Agent info:', data);
+
+            document.getElementById('agent-response').textContent = 'ℹ️ ' + data.message;
+            document.getElementById('agent-response').style.color = '#888';
+        }
+
+        function handleAgentModeChanged(data) {
+            console.log('Agent mode changed:', data);
+
+            agentMode = data.mode;
+            document.getElementById('agent-mode-select').value = data.mode;
+            document.getElementById('agent-stat-mode').textContent = data.mode;
+
+            speak('Agent mode changed to ' + data.mode.replace('agent_', ''), true);
+        }
+
+        function handleAgentStats(data) {
+            console.log('Agent stats:', data);
+
+            document.getElementById('agent-stat-turns').textContent = data.conversation_turns || 0;
+            document.getElementById('agent-stat-frames').textContent = data.visual_context_frames || 0;
+            document.getElementById('agent-stat-mode').textContent = data.mode || '-';
+        }
+
+        function requestAgentStats() {
+            if (!agentInitialized || !socket) return;
+
+            socket.emit('agent_get_stats');
+        }
+
+        // Allow sending query with Enter key
+        document.addEventListener('DOMContentLoaded', () => {
+            const queryInput = document.getElementById('agent-query-input');
+            if (queryInput) {
+                queryInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        sendAgentQuery();
+                    }
+                });
+            }
+
+            // Add keyboard shortcut for voice input (Space bar when not typing)
+            document.addEventListener('keydown', (e) => {
+                // Only trigger if not focused on input field and agent is initialized
+                if (e.key === ' ' && document.activeElement.id !== 'agent-query-input' && agentInitialized) {
+                    e.preventDefault();
+                    toggleVoiceInput();
+                }
+            });
+        });
+
+        // ============================================================
+        // Settings
+        // ============================================================
+        
+        document.getElementById('tts-toggle').addEventListener('change', (e) => {
+            ttsEnabled = e.target.checked;
+            speak(ttsEnabled ? "Voice guidance enabled" : "Voice guidance disabled", true);
+        });
+        
+        document.getElementById('haptic-toggle').addEventListener('change', (e) => {
+            hapticEnabled = e.target.checked;
+            if (hapticEnabled && navigator.vibrate) {
+                navigator.vibrate(100);
+            }
+        });
+        
+        document.getElementById('rate-slider').addEventListener('input', (e) => {
+            speechRate = parseFloat(e.target.value);
+            document.getElementById('rate-value').textContent = speechRate.toFixed(1);
+        });
+        
+        document.getElementById('volume-slider').addEventListener('input', (e) => {
+            speechVolume = parseInt(e.target.value) / 100;
+            document.getElementById('volume-value').textContent = e.target.value;
+        });
+        
+        // ============================================================
+        // Android Back Button Handling
+        // ============================================================
+        
+        // Handle Android back button to close settings instead of app
+        window.addEventListener('popstate', (event) => {
+            const settingsPanel = document.getElementById('settings-panel');
+            if (settingsPanel.style.display === 'block') {
+                event.preventDefault();
+                toggleSettings();
+                // Push state back to keep user on page
+                history.pushState(null, '', window.location.href);
+            }
+        });
+        
+        // Initialize history state
+        history.pushState(null, '', window.location.href);
+        
+        // Also handle when settings opens - add to history
+        const originalToggleSettings = toggleSettings;
+        toggleSettings = function() {
+            const panel = document.getElementById('settings-panel');
+            const wasOpen = panel.style.display === 'block';
+            originalToggleSettings();
+            
+            // If opening settings, push state so back button can close it
+            if (!wasOpen) {
+                history.pushState({ settingsOpen: true }, '', window.location.href);
+            }
+        };
+        
+        // ============================================================
+        // Keep screen awake
+        // ============================================================
+        
+        let wakeLock = null;
+        
+        async function requestWakeLock() {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Screen wake lock active');
+            } catch (err) {
+                console.log('Wake lock error:', err);
+            }
+        }
+        
+        requestWakeLock();
+        
+        // Re-acquire wake lock when visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                requestWakeLock();
+            }
+        });
+    </script>
+</body>
+</html>
